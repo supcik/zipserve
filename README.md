@@ -6,7 +6,7 @@ from a zip file.
 
 ## Usage
 
-```
+```text
 zipserve [options] ZIPFILE
 
 The options are:
@@ -21,7 +21,7 @@ ZIPFILE is the archive containing the web site (usually a .wzip file)
 The archive is a simple zip file. You can typically
 build it using the `zip` command :
 
-```
+```bash
 cd public && zip -FS -r ../my1-website.wzip . && cd ..
 ```
 
