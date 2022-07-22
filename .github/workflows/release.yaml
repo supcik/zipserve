@@ -27,3 +27,5 @@ jobs:
         goarch: ${{ matrix.goarch }}
         binary_name: "zipserve"
         compress_assets: FALSE
+        md5sum: FALSE
+        sha256sum: TRUE
