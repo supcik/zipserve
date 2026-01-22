@@ -1,6 +1,6 @@
 module github.com/supcik/zipserve
 
-go 1.25
+go 1.24
 
 require (
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
