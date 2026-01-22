@@ -1,4 +1,3 @@
-<!-- LTeX: language=en-EN -->
 # zipserve
 
 This program is an HTTP server taking its content

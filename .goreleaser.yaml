@@ -1,0 +1,68 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    ldflags:
+      - -s -w -X github.com/supcik/zipserve/cmd.version={{.Version}}
+
+universal_binaries:
+  - replace: false
+
+archives:
+  - formats: ["tar.gz"]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats: ["zip"]
+
+nfpms:
+  - maintainer: Jacques Supcik <jacques.supcik@hefr.ch>
+    description: HTTP server serving content from a zip file
+    homepage: https://github.com/supcik/zipserve
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  mode: keep-existing
+
+homebrew_casks:
+  - name: zipserve
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/zipserve"]
+          end
+    repository:
+      owner: supcik
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
