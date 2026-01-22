@@ -71,11 +71,14 @@ func serve(prefix string, port int, zipfile string, skipBrowser bool) {
 	}()
 
 	if !skipBrowser {
-		err = browser.OpenURL(fmt.Sprintf("http://localhost:%d/%s", port, prefix))
+		err = browser.OpenURL(fmt.Sprintf("http://localhost:%d%s", port, prefix))
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
+
+	fmt.Printf("\n✓ Server running at http://localhost:%d%s\n", port, prefix)
+	fmt.Println("  Press Ctrl+C to stop the server.")
 
 	wg.Wait()
 }
