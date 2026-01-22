@@ -100,3 +100,13 @@ homebrew_casks:
       owner: supcik
       name: homebrew-tap
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+
+scoops:
+  - name: zipserve
+    description: "HTTP server that serves web content directly from ZIP archives"
+    homepage: https://github.com/supcik/zipserve
+    license: MIT
+    repository:
+      owner: supcik
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_GITHUB_TOKEN }}"
