@@ -15,6 +15,9 @@ builds:
       - amd64
       - arm
       - arm64
+    ignore:
+      - goos: windows
+        goarch: arm
     ldflags:
       - -s -w -X github.com/supcik/zipserve/cmd.version={{.Version}}
 
@@ -53,9 +56,40 @@ changelog:
 
 release:
   mode: keep-existing
+  header: |
+    ## zipserve {{ .Version }}
+
+    HTTP server that serves web content directly from ZIP archives.
+
+    ### Installation
+
+    **Homebrew (macOS and Linux):**
+    ```bash
+    brew tap supcik/tap
+    brew install zipserve
+    ```
+
+    **Direct Download:**
+    Download the appropriate binary for your platform below and make it executable.
+
+    **From Source:**
+    ```bash
+    go install github.com/supcik/zipserve@{{ .Version }}
+    ```
+
+    ### What's Changed
+  footer: |
+    ---
+
+    **Full Changelog**: https://github.com/supcik/zipserve/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    For more information, visit the [project homepage](https://github.com/supcik/zipserve).
 
 homebrew_casks:
   - name: zipserve
+    description: "HTTP server that serves web content directly from ZIP archives"
+    homepage: https://github.com/supcik/zipserve
+    license: MIT
     hooks:
       post:
         install: |
