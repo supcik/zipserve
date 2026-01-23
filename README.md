@@ -22,6 +22,13 @@ brew tap supcik/tap
 brew install zipserve
 ```
 
+### From Scoop (Windows)
+
+```bash
+scoop bucket add supcik https://github.com/supcik/scoop-bucket
+scoop install zipserve
+```
+
 ### From GitHub Releases
 
 1. Go to the [releases page](https://github.com/supcik/zipserve/releases)
@@ -30,10 +37,13 @@ brew install zipserve
    - **Linux**: `zipserve_linux_amd64` or `zipserve_linux_arm64`
    - **Windows**: `zipserve_windows_amd64.exe`
 3. Make it executable (Linux/macOS):
+
    ```bash
    chmod +x zipserve_*
    ```
+
 4. Move it to a directory in your PATH:
+
    ```bash
    sudo mv zipserve_* /usr/local/bin/zipserve
    ```
@@ -61,11 +71,13 @@ Usage:
   zipserve [flags] ZIPFILE
 
 Flags:
-  -h, --help            help for zipserve
-  -p, --port int        Port Number (default 8080)
-  -q, --prefix string   Path prefix
-  -s, --skip-browser    Do not open the browser automatically
-  -v, --version         version for zipserve
+  -d, --directory string   Directory to serve in the zip file. If not set, the directory containing the .prefix file is used
+  -h, --help               help for zipserve
+  -p, --port int           Port Number (default 8080)
+  -q, --prefix string      Path prefix. If not set, the prefix is read from the .prefix file inside the zip file.
+  -n, --skip-browser       Do not open the browser automatically
+  -v, --verbose            Enable verbose logging
+      --version            version for zipserve
 
 ZIPFILE is the archive containing the web site (usually a .wzip file)
 ```
@@ -111,7 +123,7 @@ provide the correct prefix directly in the archive.
 For this, just add the file `/.prefix` with one line
 containing the correct prefix. For example :
 
-```
+```text
 /my-project-name/
 ```
 
