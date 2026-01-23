@@ -110,6 +110,7 @@ func waitForShutdown(serverErr <-chan error) bool {
 
 	select {
 	case <-done:
+		fmt.Print("\r")
 		log.Info("Shutting down server...")
 		return true
 	case err := <-serverErr:
@@ -190,6 +191,7 @@ func serve(prefix string, port int, zipfile string, directory string, skipBrowse
 
 	fmt.Printf("\n✓ Server running at %s\n", url)
 	fmt.Println("  Press Ctrl+C to stop the server.")
+	fmt.Println()
 
 	// Wait for shutdown signal
 	waitForShutdown(serverErr)
