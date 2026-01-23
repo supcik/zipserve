@@ -71,10 +71,12 @@ Usage:
   zipserve [flags] ZIPFILE
 
 Flags:
-  -d, --directory string   Directory to serve in the zip file. If not set, the directory containing the .prefix file is used
+  -d, --directory string   Directory to serve in the zip file. If not set, the directory
+                           containing the .prefix file is used
   -h, --help               help for zipserve
   -p, --port int           Port Number (default 8080)
-  -q, --prefix string      Path prefix. If not set, the prefix is read from the .prefix file inside the zip file.
+  -q, --prefix string      Path prefix. If not set, the prefix is read from the .prefix
+                           file inside the zip file.
   -n, --skip-browser       Do not open the browser automatically
   -v, --verbose            Enable verbose logging
       --version            version for zipserve
