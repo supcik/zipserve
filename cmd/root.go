@@ -35,8 +35,102 @@ const (
 
 var version = "dev"
 
-func serve(prefix string, port int, zipfile string, directory string, skipBrowser bool) {
+// findRootDirectory searches for a .prefix file in the zip and returns its directory.
+// If not found, returns the default directory.
+func findRootDirectory(fileSystem fs.FS) string {
+	log.Debugf("Searching for %s file to determine directory", prefixFileName)
+	directory := defaultDirectory
+	err := fs.WalkDir(fileSystem, defaultDirectory, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.Name() == prefixFileName {
+			directory = path.Dir(p)
+			log.Debugf("Found %s in %s", prefixFileName, directory)
+			return fs.SkipAll
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("Failed to walk directory: %v", err)
+	}
+	return directory
+}
 
+// readPrefixFromFile reads the prefix from a .prefix file in the zip.
+// Returns empty string if the file doesn't exist or can't be read.
+func readPrefixFromFile(fileSystem fs.FS, directory string) string {
+	log.Debugf("Reading prefix from %s file", prefixFileName)
+	f, err := fileSystem.Open(path.Join(directory, prefixFileName))
+	if err != nil {
+		return ""
+	}
+	defer func() {
+		if cerr := f.Close(); cerr != nil {
+			log.Errorf("Failed to close file: %v", cerr)
+		}
+	}()
+
+	s := bufio.NewScanner(f)
+	if s.Scan() {
+		return strings.TrimSpace(s.Text())
+	}
+	if err := s.Err(); err != nil {
+		log.Warnf("Error reading %s file: %v", prefixFileName, err)
+	}
+	return ""
+}
+
+// normalizePrefix ensures the prefix starts and ends with "/".
+func normalizePrefix(prefix string) string {
+	if !strings.HasPrefix(prefix, "/") {
+		prefix = "/" + prefix
+	}
+	if !strings.HasSuffix(prefix, "/") {
+		prefix = prefix + "/"
+	}
+	return prefix
+}
+
+// openBrowser opens the URL in the default browser if skipBrowser is false.
+func openBrowser(url string, skipBrowser bool) {
+	if skipBrowser {
+		return
+	}
+	if err := browser.OpenURL(url); err != nil {
+		log.Warnf("Failed to open browser: %v", err)
+	}
+}
+
+// waitForShutdown blocks until interrupt signal or server error.
+// Returns true if shutdown was triggered by interrupt, false on server error.
+func waitForShutdown(serverErr <-chan error) bool {
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case <-done:
+		log.Info("Shutting down server...")
+		return true
+	case err := <-serverErr:
+		log.Fatalf("Server error: %v", err)
+		return false
+	}
+}
+
+// gracefulShutdown performs a graceful shutdown of the server with timeout.
+func gracefulShutdown(server *http.Server) {
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Errorf("Server forced to shutdown: %v", err)
+	} else {
+		log.Info("Server stopped gracefully")
+	}
+}
+
+func serve(prefix string, port int, zipfile string, directory string, skipBrowser bool) {
 	log.Debug("Opening file ", zipfile)
 	z, err := zip.OpenReader(zipfile)
 	if err != nil {
@@ -50,74 +144,38 @@ func serve(prefix string, port int, zipfile string, directory string, skipBrowse
 		}
 	}()
 
-	// If directory is not set, search for a .prefix file
+	// Determine directory
 	if directory == "" {
-		log.Debugf("Searching for %s file to determine directory", prefixFileName)
-		directory = defaultDirectory
-		err := fs.WalkDir(z, defaultDirectory, func(p string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.Name() == prefixFileName {
-				directory = path.Dir(p)
-				log.Debugf("Found %s in %s", prefixFileName, directory)
-				return fs.SkipAll
-			}
-			return nil
-		})
-		if err != nil {
-			log.Fatalf("Failed to walk directory: %v", err)
-		}
+		directory = findRootDirectory(z)
 	}
-
 	log.Debug("Using directory: ", directory)
 
+	// Determine prefix
 	if prefix == "" {
-		log.Debugf("Reading prefix from %s file", prefixFileName)
-		// Try to read the prefix from the .prefix file
-		f, err := z.Open(path.Join(directory, prefixFileName))
-		if err == nil {
-			defer func() {
-				if cerr := f.Close(); cerr != nil {
-					log.Errorf("Failed to close file: %v", cerr)
-				}
-			}()
-			s := bufio.NewScanner(f)
-			if s.Scan() {
-				prefix = strings.TrimSpace(s.Text())
-			}
-			if err := s.Err(); err != nil {
-				log.Warnf("Error reading %s file: %v", prefixFileName, err)
-			}
-		}
+		prefix = readPrefixFromFile(z, directory)
 	}
-
-	// Make sure that the prefix starts with a "/" and also ends with a "/"
-	if !strings.HasPrefix(prefix, "/") {
-		prefix = "/" + prefix
-	}
-	if !strings.HasSuffix(prefix, "/") {
-		prefix = prefix + "/"
-	}
-
+	prefix = normalizePrefix(prefix)
 	log.Debug("Using prefix: ", prefix)
 
+	// Validate directory
 	if info, err := fs.Stat(z, directory); err != nil || !info.IsDir() {
 		log.Fatalf("Directory %s not found or is not a directory in zip file", directory)
 	}
 
+	// Create sub filesystem
 	fileSystem, err := fs.Sub(z, directory)
 	if err != nil {
 		log.Fatalf("Failed to create sub filesystem: %v", err)
 	}
 
+	// Setup HTTP handler
 	http.Handle(prefix, http.StripPrefix(prefix, http.FileServer(http.FS(fileSystem))))
 
+	// Create and start server
 	server := &http.Server{
 		Addr: fmt.Sprintf(":%d", port),
 	}
 
-	// Start server in a goroutine
 	serverErr := make(chan error, 1)
 	go func() {
 		log.Debugf("Starting HTTP server on port %d", port)
@@ -126,36 +184,18 @@ func serve(prefix string, port int, zipfile string, directory string, skipBrowse
 		}
 	}()
 
+	// Print server info and open browser
 	url := fmt.Sprintf("http://localhost:%d%s", port, prefix)
-	if !skipBrowser {
-		if err := browser.OpenURL(url); err != nil {
-			log.Warnf("Failed to open browser: %v", err)
-		}
-	}
+	openBrowser(url, skipBrowser)
 
 	fmt.Printf("\n✓ Server running at %s\n", url)
 	fmt.Println("  Press Ctrl+C to stop the server.")
 
-	// Wait for interrupt signal or server error
-	done := make(chan os.Signal, 1)
-	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
+	// Wait for shutdown signal
+	waitForShutdown(serverErr)
 
-	select {
-	case <-done:
-		log.Info("Shutting down server...")
-	case err := <-serverErr:
-		log.Fatalf("Server error: %v", err)
-	}
-
-	// Graceful shutdown with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		log.Errorf("Server forced to shutdown: %v", err)
-	} else {
-		log.Info("Server stopped gracefully")
-	}
+	// Graceful shutdown
+	gracefulShutdown(server)
 }
 
 var rootCmd = &cobra.Command{
@@ -192,8 +232,10 @@ func Execute() {
 func init() {
 	rootCmd.Version = version
 	rootCmd.Flags().IntP("port", "p", defaultPort, "Port Number")
-	rootCmd.Flags().StringP("prefix", "q", "", "Path prefix. If not set, the prefix is read from the .prefix file inside the zip file.")
-	rootCmd.Flags().StringP("directory", "d", "", "Directory to serve in the zip file. If not set, the directory containing the .prefix file is used")
+	rootCmd.Flags().
+		StringP("prefix", "q", "", "Path prefix. If not set, the prefix is read from the .prefix file inside the zip file.")
+	rootCmd.Flags().
+		StringP("directory", "d", "", "Directory to serve in the zip file. If not set, the directory containing the .prefix file is used")
 	rootCmd.Flags().BoolP("skip-browser", "n", false, "Do not open the browser automatically")
 	rootCmd.Flags().BoolP("verbose", "v", false, "Enable verbose logging")
 }
